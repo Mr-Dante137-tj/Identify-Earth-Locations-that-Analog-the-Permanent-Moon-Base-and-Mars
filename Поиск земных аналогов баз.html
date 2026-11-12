@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Поиск земных аналогов баз | NASA Space Apps</title>
+<style>
+*{box-sizing:border-box}
+:root{color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;padding-top:calc(16px + env(safe-area-inset-top,0px))!important;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;background:#0b0f19;color:#f3f4f6;font-family:Inter,Arial,sans-serif;padding:16px}
+.wrap{max-width:1300px;margin:0 auto}
+h1,h2,h3{color:#60a5fa}
+h1{margin:0 0 6px}
+h3{margin:0 0 14px;font-weight:500}
+p.lead{color:#d1d5db}
+.panel{background:#111827;border:1px solid rgba(59,130,246,.3);border-radius:12px;padding:16px;margin:16px 0}
+.panel h2{margin:0 0 12px;font-size:1.1rem}
+input[type=text],select{width:100%;padding:10px;border-radius:8px;border:1px solid #374151;background:#0f172a;color:#f3f4f6;font-size:1rem}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+label{display:block;font-size:.85rem;color:#9ca3af;margin-bottom:4px}
+label b{color:#60a5fa}
+input[type=range]{width:100%}
+details{margin-top:14px;font-size:.85rem;color:#d1d5db}
+details label{color:#d1d5db;margin:6px 0;display:flex;gap:8px;align-items:center}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+.card{background:rgba(30,41,59,.7);border:1px solid rgba(59,130,246,.3);padding:18px;border-radius:12px;box-shadow:0 4px 6px -1px rgba(0,0,0,.1);margin-bottom:15px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h4{margin:0;color:#93c5fd}
+.badge{padding:4px 10px;border-radius:9999px;font-size:.75rem;font-weight:600;white-space:nowrap}
+.badge-luna{background:#374151;color:#9ca3af}
+.badge-mars{background:#7f1d1d;color:#fca5a5}
+.analog{margin-top:6px;padding:6px 10px;background:rgba(59,130,246,.15);border-left:3px solid #60a5fa;border-radius:4px;font-size:.85rem;color:#bfdbfe}
+.desc{margin:8px 0;font-size:.9rem;color:#d1d5db}
+.meta{font-size:.85rem;color:#9ca3af;display:flex;flex-wrap:wrap;gap:15px;margin-bottom:10px}
+.sim{background:rgba(15,23,42,.6);padding:8px 12px;border-radius:8px;margin-bottom:10px;font-size:.8rem}
+.sim div.t{color:#9ca3af;margin-bottom:4px;font-weight:600}
+.sim .g{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;color:#e5e7eb}
+.sim b{color:#60a5fa}
+.score{color:#34d399;font-weight:bold}
+a{color:#60a5fa;text-decoration:none;font-size:.85rem}
+#map{border-radius:12px;overflow:hidden;background:#0f172a;border:1px solid #1f2937}
+#svg{width:100%;display:block}
+#svg circle{cursor:pointer}
+button{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:1rem;cursor:pointer}
+.warn{background:#422006;color:#fde68a;padding:12px;border-radius:8px}
+.tip{background:rgba(59,130,246,.15);color:#bfdbfe;padding:12px;border-radius:8px;margin-top:12px;font-size:.9rem}
+footer{text-align:center;color:#6b7280;font-size:.85rem;margin-top:30px;border-top:1px solid #1f2937;padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🪐 Поиск земных аналогов космических баз</h1>
+<h3>NASA Space Apps Challenge — Спутниковый анализ Земли для миссий на Луну и Марс</h3>
+<p class="lead">Задайте параметры целевого кратера или посадочной площадки. Алгоритм подберёт земные полигоны для испытания роверов, скафандров и жилых модулей.</p>
+
+<input type="text" id="q" placeholder="🔍 Опишите поверхность или задачу: «холодный кратер», «базальтовый грунт», «песок с оксидом железа»">
+
+<div class="panel">
+<h2>🎯 Параметры миссии</h2>
+<div class="filters">
+<div><label>Небесное тело</label>
+<select id="body"><option>Все / Общий поиск</option><option>Луна</option><option>Марс</option></select></div>
+<div><label>Высота над уровнем моря: <b id="v_elev"></b> м</label>
+<input type="range" id="elev" min="-500" max="5000" step="100" value="1500"></div>
+<div><label>Максимальный уклон: <b id="v_slope"></b>°</label>
+<input type="range" id="slope" min="0" max="30" step="0.5" value="10"></div>
+<div><label>Скорость ветра: <b id="v_wind"></b> км/ч</label>
+<input type="range" id="wind" min="0" max="60" step="2" value="25"></div>
+<div><label>Инсоляция: <b id="v_solar"></b> кВт·ч/м²/день</label>
+<input type="range" id="solar" min="1" max="10" step="0.5" value="6"></div>
+</div>
+<details><summary>Цвет реголита / состав поверхности</summary><div id="regs"></div></details>
+</div>
+
+<div class="cols">
+<div>
+<h2>📍 Найденные локации-аналоги</h2>
+<p>Найдено полигонов: <b id="count"></b></p>
+<div id="list"></div>
+</div>
+<div>
+<h2>🗺️ Интерактивная карта миссий</h2>
+<p>Схема в координатах широта/долгота. Красные маркеры: Марс, синие: Луна.</p>
+<div id="map"><svg id="svg" viewBox="0 0 360 180"></svg></div>
+<div id="info" class="tip">Нажмите на маркер, чтобы увидеть подробности.</div>
+</div>
+</div>
+
+<footer>Проект для NASA Space Apps Challenge</footer>
+</div>
+
+<script>
+const DATA=[
+{name:"Пустыня Атакама (Регион Юнгай, Чили)",target:"Марс",lat:-24.025,lon:-69.907,elev:2400,slope:3.5,color:"Красно-коричневый (Оксид железа)",wind:18,solar:8.5,z:12,counter:"Марс: Кратер Езеро (зона посадки Perseverance) и равнина Амазония",desc:"Гипераридная пустыня с высоким содержанием перхлоратов в почве и почти полным отсутствием органики. Идеально подходит для тестирования марсоходов и датчиков поиска жизни."},
+{name:"Остров Девон (Кратер Хотон, Канада)",target:"Луна и Марс",lat:75.371,lon:-89.670,elev:200,slope:8.2,color:"Серая базальтовая брекчия",wind:35,solar:3.2,z:10,counter:"Луна: Кратер Шеклтон (Южный полюс) | Марс: Кратер Гейл",desc:"Необитаемый полярный ударный кратер с вечной мерзлотой, сильной ветровой эрозией и отсутствием растительности. Главный земной полигон NASA для испытаний скафандров и лунной логистики."},
+{name:"Бассейн кислотной реки Рио-Тинто (Испания)",target:"Марс",lat:37.698,lon:-6.587,elev:350,slope:5,color:"Глубокий охристо-ржавый",wind:12,solar:5.4,z:13,counter:"Марс: Плато Меридиана (зона работы Opportunity)",desc:"Экстремально кислые воды, богатые тяжелыми металлами, моделирующие древнюю водную среду Марса и подповерхностные отложения сульфата железа."},
+{name:"Сухие долины Мак-Мердо (Антарктида)",target:"Марс",lat:-77.633,lon:163.083,elev:150,slope:12,color:"Светло-серый ледниковый тилль",wind:42,solar:4.1,z:11,counter:"Марс: Равнина Утопия и полярная шапка Аркадия",desc:"Полярная пустыня с сухими вечномерзлыми грунтами и штормовыми стоковыми ветрами. Лучший полигон для проверки автономной навигации роверов в экстремальном холоде."},
+{name:"Вулканические склоны Мауна-Кеа (Гавайи)",target:"Луна",lat:19.820,lon:-155.468,elev:3400,slope:14.5,color:"Темный вулканический базальт и шлак",wind:28,solar:7.8,z:12,counter:"Луна: Море Спокойствия и Океан Бурь (базальтовые покровы)",desc:"Вулканические шлаковые конусы с рыхлым базальтовым грунтом и крутыми склонами, идентичными реголиту лунных морей и стенкам кратеров."},
+{name:"Кальдера вулкана Аскья (Исландия)",target:"Луна",lat:65.035,lon:-16.750,elev:1050,slope:11,color:"Черная тефра и пемза",wind:31,solar:3,z:11,counter:"Луна: Долина Таурус-Литтров (место посадки Аполлон-17)",desc:"Высокогорная вулканическая пустыня, где проходили геологическую подготовку астронавты миссий «Аполлон» перед высадкой на Луну."},
+{name:"Эрозионный кратер Махтеш-Рамон (Израиль)",target:"Луна и Марс",lat:30.605,lon:34.815,elev:500,slope:16,color:"Разноцветный песчаник и гипс",wind:15,solar:7.2,z:12,counter:"Марс: Долины Маринер | Луна: Вал кратера Тихо",desc:"Гигантский геологический цирк с обнаженными многослойными породами. Оптимален для тестирования буровых установок и систем крепления жилых модулей."},
+{name:"Впадина Данакиль / Даллол (Эфиопия)",target:"Марс",lat:14.242,lon:40.298,elev:-120,slope:2,color:"Желто-зеленые серные и соляные корки",wind:10,solar:9.1,z:13,counter:"Марс: Кратер Колумбия и гидротермальные поля Гусева",desc:"Экстремальная гидротермальная зона с гиперсолеными минеральными отложениями, моделирующая древние марсианские эвапоритовые бассейны."}
+];
+const $=id=>document.getElementById(id);
+const link=r=>`https://maps.google.com/?q=${r.lat},${r.lon}&ll=${r.lat},${r.lon}&z=${r.z}`;
+const colors=[...new Set(DATA.map(d=>d.color))];
+$("regs").innerHTML=colors.map(c=>`<label><input type="checkbox" value="${c}" checked> ${c}</label>`).join("");
+
+let rows=[];
+
+function sim(v,t,range){return Math.max(0,100-Math.abs(v-t)/range*100)}
+
+function update(){
+  const eReq=+$("elev").value,sReq=+$("slope").value,wReq=+$("wind").value,soReq=+$("solar").value;
+  $("v_elev").textContent=eReq;$("v_slope").textContent=sReq;$("v_wind").textContent=wReq;$("v_solar").textContent=soReq;
+  const kw=$("q").value.trim().toLowerCase().split(/\s+/).filter(w=>w.length>2);
+  const body=$("body").value;
+  const allowed=[...document.querySelectorAll("#regs input:checked")].map(i=>i.value);
+  rows=DATA.filter(r=>{
+    if(kw.length){const t=`${r.name} ${r.desc} ${r.color} ${r.counter} ${r.target}`.toLowerCase();if(!kw.some(k=>t.includes(k)))return false}
+    if(body!=="Все / Общий поиск"&&!r.target.includes(body))return false;
+    return allowed.includes(r.color);
+  }).map(r=>{
+    const e=sim(r.elev,eReq,5000),s=sim(r.slope,sReq,30),w=sim(r.wind,wReq,60),so=sim(r.solar,soReq,10);
+    return {...r,e:Math.floor(e),s:Math.floor(s),w:Math.floor(w),so:Math.floor(so),score:Math.floor(e*.25+s*.30+w*.25+so*.20)};
+  }).sort((a,b)=>b.score-a.score);
+
+  $("count").textContent=rows.length;
+  $("list").innerHTML=rows.length?rows.map(r=>`
+  <div class="card">
+    <div class="row"><h4>${r.name}</h4><span class="badge ${r.target.includes("Марс")?"badge-mars":"badge-luna"}">${r.target}</span></div>
+    <div class="analog">🛰️ <b>Аналог поверхности:</b> ${r.counter}</div>
+    <p class="desc">${r.desc}</p>
+    <div class="meta"><span>📍 ${r.lat}, ${r.lon}</span><span>⛰️ ${r.elev} м</span><span>📐 ${r.slope}°</span></div>
+    <div class="sim"><div class="t">Совпадение факторов:</div><div class="g">
+      <span>⛰️ Высота: <b>${r.e}%</b></span><span>📐 Уклон: <b>${r.s}%</b></span>
+      <span>💨 Ветер: <b>${r.w}%</b></span><span>☀️ Солнце: <b>${r.so}%</b></span></div></div>
+    <div class="row"><span class="score">Общее совпадение: ${r.score}%</span>
+    <a href="${link(r)}" target="_blank">🛰️ Спутниковый снимок ↗</a></div>
+  </div>`).join(""):`<div class="warn">Локаций не найдено. Измените фильтры.</div>`;
+
+  let g="";
+  for(let x=0;x<=360;x+=30)g+=`<line x1="${x}" y1="0" x2="${x}" y2="180" stroke="#1f2937" stroke-width=".4"/>`;
+  for(let y=0;y<=180;y+=30)g+=`<line x1="0" y1="${y}" x2="360" y2="${y}" stroke="${y===90?"#374151":"#1f2937"}" stroke-width=".4"/>`;
+  g+=`<text x="2" y="88" fill="#6b7280" font-size="5">0°</text><text x="181" y="7" fill="#6b7280" font-size="5">0°</text>`;
+  rows.forEach((r,i)=>{
+    g+=`<circle cx="${r.lon+180}" cy="${90-r.lat}" r="3.2" fill="${r.target.includes("Марс")?"#ef4444":"#3b82f6"}" stroke="#fff" stroke-width=".6" onclick="show(${i})"><title>${r.name}</title></circle>`;
+  });
+  $("svg").innerHTML=g;
+}
+
+function show(i){
+  const r=rows[i];
+  $("info").innerHTML=`<b>${r.name}</b><br>Цель: ${r.target}<br>Координаты: ${r.lat}, ${r.lon}<br>Совпадение: ${r.score}%<br><a href="${link(r)}" target="_blank">Открыть в Google Maps ↗</a>`;
+}
+
+document.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",update));
+
+update();
+</script>
+</body>
+</html>
